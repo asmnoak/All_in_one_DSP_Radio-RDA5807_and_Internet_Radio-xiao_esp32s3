@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="description" content="Web Bluetooth / Control ESP32">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Web Bluetooth / Control ESP32</title>
+</head>
+<style>
+body {
+  background-color: #ffffff;
+  box-sizing: border-box;
+  font-family: "Roboto", "Helvetica", "Arial", sans-serif;
+}
+
+@media screen and (min-width: 1111px) {
+  body {
+    width: 1100px;
+    margin: 0 auto;
+  }
+}
+
+h1 {
+  margin-bottom: -0.3em;
+}
+
+h2 {
+  margin-top: 2em;
+}
+
+h3 {
+  margin-bottom: -0.2em;
+  margin-top: 2em;
+}
+
+.output {
+  background-color: #f0f0f0;
+  border-radius: 0.75em;
+  display: block;
+  margin: 0.5em;
+  padding: 0.5em;
+}
+
+#status {
+  margin: .5em 0;
+  font-style: italic;
+}
+
+#log {
+  margin: .5em 0;
+  white-space: pre-wrap;
+}
+
+#status:empty, #log:empty, #content:empty {
+  display: none;
+}
+</style>
+  <body>
+    <h1>Web Bluetooth / Control ESP32 DSP and Internet Radio</h1>
+    <p>The <a href="https://developers.google.com/web/updates/2015/07/interact-with-ble-devices-on-the-web">Web Bluetooth API</a>
+     lets browser discover and communicate with devices over the Bluetooth 4 wireless standard using the Generic Attribute Profile (GATT).</p>
+
+<style>.lay_i input:first-of-type{margin-right: 20px;}</style>
+<style>.btn {width: 300px; padding: 10px; box-sizing: border-box; border: 1px solid #68779a; background: #cbe8fa; cursor: pointer;}</style>
+<style>.btn_y {width: 300px; padding: 10px; box-sizing: border-box; border: 1px solid #68779a; background: #ffff8a; cursor: pointer;}</style>
+<script>
+  window.addEventListener('DOMContentLoaded', function() {
+    const searchParams = new URL(location).searchParams;
+    const inputs = Array.from(document.querySelectorAll('input[id]'));
+
+    inputs.forEach(input => {
+      if (searchParams.has(input.id)) {
+        if (input.type == 'checkbox') {
+          input.checked = searchParams.get(input.id);
+        } else {
+          input.value = searchParams.get(input.id);
+          input.blur();
+        }
+      }
+      if (input.type == 'checkbox') {
+        input.addEventListener('change', function(event) {
+          const newSearchParams = new URL(location).searchParams;
+          if (event.target.checked) {
+            newSearchParams.set(input.id, event.target.checked);
+          } else {
+            newSearchParams.delete(input.id);
+          }
+          history.replaceState({}, '', Array.from(newSearchParams).length ?
+              location.pathname + '?' + newSearchParams : location.pathname);
+        });
+      } else {
+        input.addEventListener('input', function(event) {
+          const newSearchParams = new URL(location).searchParams;
+          if (event.target.value) {
+            newSearchParams.set(input.id, event.target.value);
+          } else {
+            newSearchParams.delete(input.id);
+          }
+          history.replaceState({}, '', Array.from(newSearchParams).length ?
+              location.pathname + '?' + newSearchParams : location.pathname);
+        });
+      }
+    });
+  });
+</script>
+  <div class="lay_i"><button id="readButton" class="btn_y">Connect to ESP32</button></div><br>
+  <div style="font-weight : bold ;">Must be connected first. The connection times out. You then need to reconnect.</div>
+</p>
+
+
+<p>
+  <input id="description" type="text" placeholder="Characteristic User Description" value="on"> Command
+  <div class="lay_i"><button id="writeButton" class="btn" disabled="">Set current time to ESP32 RTC</button></div>
+</p>
+<p>
+  <div class="lay_i"><button id="ctrlButton1" class="btn" disabled="">Volume UP</button>&nbsp;&nbsp;&nbsp;&nbsp;<button id="ctrlButton2" class="btn" disabled="">Volume DOWN</button></div>
+</p>
+<p>
+  <div class="lay_i"><button id="ctrlButton3" class="btn" disabled="">Station UP</button>&nbsp;&nbsp;&nbsp;&nbsp;<button id="ctrlButton4" class="btn" disabled="">Station DOWN</button></div>
+</p>
+<p>
+  <div class="lay_i"><button id="ctrlButton5" class="btn" disabled="">Power OFF/ON</button></div>
+</p>
+<script>
+  var ChromeSamples = {
+    log: function() {
+      var line = Array.prototype.slice.call(arguments).map(function(argument) {
+        return typeof argument === 'string' ? argument : JSON.stringify(argument);
+      }).join(' ');
+
+      document.querySelector('#log').textContent += line + '\n';
+    },
+
+    clearLog: function() {
+      document.querySelector('#log').textContent = '';
+    },
+
+    setStatus: function(status) {
+      document.querySelector('#status').textContent = status;
+    },
+
+    setContent: function(newContent) {
+      var content = document.querySelector('#content');
+      while(content.hasChildNodes()) {
+        content.removeChild(content.lastChild);
+      }
+      content.appendChild(newContent);
+    }
+  };
+</script>
+
+<h3>Schedule of Week</h3>
+<p>
+<table id="tbl" border="1" style="border-collapse: collapse">
+<tr>
+<td><input type="radio" name="week" id="wu" value="Sun" onclick="setinput('WK1')" checked><label>Sun&nbsp;</label></td>
+<td><input type="radio" name="week" id="wm" value="Mon" onclick="setinput('WK2')"><label>Mon&nbsp;</label></td>
+<td><input type="radio" name="week" id="wt" value="Tue" onclick="setinput('WK3')"><label>Tue&nbsp;</label></td>
+<td><input type="radio" name="week" id="wu" value="Wed" onclick="setinput('WK4')"><label>Wed&nbsp;</label></td>
+<td><input type="radio" name="week" id="wh" value="Thu" onclick="setinput('WK5')"><label>Thu&nbsp;</label></td>
+<td><input type="radio" name="week" id="wf" value="Fri" onclick="setinput('WK6')"><label>Fri&nbsp;</label></td>
+<td><input type="radio" name="week" id="wa" value="Sat" onclick="setinput('WK7')"><label>Sat&nbsp;</label></td>
+</tr>
+</table>
+</p>
+<p>
+  <div class="lay_i"><button id="readButton2" class="btn" disabled="">Read Schedule Day of Week</button>&nbsp;&nbsp;&nbsp;&nbsp;<button id="writeButton3" class="btn" disabled="">Save Schedule Day of Week</button></div>
+</p>
+<p>
+&nbsp;Arguments of a entity: Start time(hour:min), &nbsp;Station Number, &nbsp;Duration(min), &nbsp;Volume, &nbsp;Pweroff
+</p>
+<p>
+  <input id="charwodsched" type="text" placeholder="Characteristic Day of Week" value="Sun;6:31,1,59,2,1;9:00,6,59,2,0;10:00,0,59,2,0;11:00,3,119,2,0;13:00,3,59,2,0;14:00,0,59,2,0;15:00,1,59,2,0;19:00,3,119,2,0;22:00,1,119,2,1;" size="144" style="font-weight : bold ;">
+</p>
+
+<h3>Radio Stations</h3>
+<p>
+<table id="tbl" border="1" style="border-collapse: collapse">
+<tr>
+<td width="40"><input type="radio" name="staions" id="t0" value="1" onclick="setinput2('ST0')" checked><label>0&nbsp;</label></td>
+<td width="40"><input type="radio" name="staions" id="t1" value="2" onclick="setinput2('ST1')"><label>1&nbsp;</label></td>
+<td width="40"><input type="radio" name="staions" id="t2" value="3" onclick="setinput2('ST2')"><label>2&nbsp;</label></td>
+<td width="40"><input type="radio" name="staions" id="t3" value="4" onclick="setinput2('ST3')"><label>3&nbsp;</label></td>
+<td width="40"><input type="radio" name="staions" id="t4" value="5" onclick="setinput2('ST4')"><label>4&nbsp;</label></td>
+<td width="40"><input type="radio" name="staions" id="t5" value="6" onclick="setinput2('ST5')"><label>5&nbsp;</label></td>
+<td width="40"><input type="radio" name="staions" id="t6" value="7" onclick="setinput2('ST6')"><label>6&nbsp;</label></td>
+<td>&nbsp;&nbsp;<div id="stnlist"></div>&nbsp;&nbsp;</td>
+</tr>
+</table>
+</p><p>
+  <div class="lay_i"><button id="readButton3" class="btn" disabled="">Read Station Info</button>&nbsp;&nbsp;&nbsp;&nbsp;<button id="writeButton4" class="btn" disabled="">Save Station Info</button></div>
+</p>
+<p>
+  <input id="charwodsched2" type="text" placeholder="Stationinfo" value="ST1,90.4,STV" size="24" style="font-weight : bold ;">
+</p>
+<h3>WiFi Setup</h3>
+<p>
+  <input id="charwodwifi1" type="text" placeholder="Wifiinfo1" value="ssid" size="24" style="font-weight : bold ;">&nbsp;&nbsp;
+  <input id="charwodwifi2" type="text" placeholder="Wifiinfo2" value="password" size="24" style="font-weight : bold ;">
+</p>
+<p>
+  <div class="lay_i"><button id="writeButton5" class="btn" disabled="">Save WiFi Info</button></div>
+</p>
+<h3>Live Output</h3>
+<div id="output" class="output">
+  <div id="content"></div>
+  <div id="status"></div>
+  <pre id="log"></pre>
+</div>
+
+<h3>End of Page</h3>
+
+<script>
+  if (/Chrome\/(\d+\.\d+.\d+.\d+)/.test(navigator.userAgent)){
+    // Let's log a warning if the sample is not supposed to execute on this
+    // version of Chrome.
+    if (58 > parseInt(RegExp.$1)) {
+      ChromeSamples.setStatus('Warning! Keep in mind this sample has been tested with Chrome ' + 58 + '.');
+    }
+  }
+</script>
+
+<script>var myDescriptor; var myCharacteristic; var myCharacteristic2; var myService; var myCharacteristicS;
+function onReadButtonClick() {
+  let serviceUuid = '00001805-7a45-47db-adb9-26164b3e7a7b';
+
+  //let characteristicUuid = '00001805-7a45-47db-adb9-26164b3e7a7b';
+  let characteristicUuid = '00002a2b-7a45-47db-adb9-26164b3e7a7b';
+  //let characteristicDOWUuid = 'day_of_week';
+  //let characteristicPPCPUuid = 'gap.peripheral_preferred_connection_parameters';
+  let characteristicDOWUuid = '00002a09-7a45-47db-adb9-26164b3e7a7b';
+  let characteristicPPCPUuid = '00002a04-7a45-47db-adb9-26164b3e7a7b';
+  
+  log('Requesting any Bluetooth Device...');
+  navigator.bluetooth.requestDevice({
+   // filters: [...] <- Prefer filters to save energy & show relevant devices.
+      acceptAllDevices: true,
+      optionalServices: [serviceUuid]})
+  .then(device => {
+    log('Connecting to GATT Server...');
+    return device.gatt.connect();
+  })
+  .then(server => {
+    log('Getting Service...' + serviceUuid);
+    return server.getPrimaryService(serviceUuid);
+  })
+  .then(service => {
+    log('Getting Characteristic...' + characteristicUuid);
+    myService = service;
+    return service.getCharacteristic(characteristicUuid);
+  })
+  .then(characteristic => {
+    log('Getting Descriptor...');
+    myCharacteristicS = characteristic;
+    //return characteristic.getDescriptor('gatt.characteristic_user_description');
+    return characteristic.getDescriptor('00002901-7a45-47db-adb9-26164b3e7a7b');
+  })
+  .then(descriptor => {
+    document.querySelector('#writeButton').disabled =
+        !descriptor.characteristic.properties.write;
+    //document.querySelector('#writeButton2').disabled =
+    //    !descriptor.characteristic.properties.write;
+    document.querySelector('#writeButton3').disabled =
+        !descriptor.characteristic.properties.write;
+    document.querySelector('#writeButton4').disabled =
+        !descriptor.characteristic.properties.write;
+    document.querySelector('#writeButton5').disabled =
+        !descriptor.characteristic.properties.write;
+    myDescriptor = descriptor;
+    document.querySelector('#readButton2').disabled =
+        !descriptor.characteristic.properties.write;
+    document.querySelector('#readButton3').disabled =
+        !descriptor.characteristic.properties.write;
+    document.querySelector('#ctrlButton1').disabled =
+        !descriptor.characteristic.properties.write;
+    document.querySelector('#ctrlButton2').disabled =
+        !descriptor.characteristic.properties.write;
+    document.querySelector('#ctrlButton3').disabled =
+        !descriptor.characteristic.properties.write;
+    document.querySelector('#ctrlButton4').disabled =
+        !descriptor.characteristic.properties.write;
+    document.querySelector('#ctrlButton5').disabled =
+        !descriptor.characteristic.properties.write;
+    log('Reading Descriptor...');
+    return descriptor.readValue();
+  })
+  .then(value => {
+    let decoder = new TextDecoder('utf-8');
+    log('> Characteristic User Description: ' + decoder.decode(value));
+    return myCharacteristicS.readValue();
+  })
+  .then(readvalue => {
+    log('Getting Characteristic...' + characteristicDOWUuid);
+    log(readvalue + ':' + readvalue.byteLength);
+    let decodedStr = "";
+    for (let ci = 0; ci < readvalue.byteLength; ci++) {
+          decodedStr += String.fromCharCode(readvalue.getUint8(ci, true));
+    }
+    document.querySelector('#stnlist').textContent = decodedStr;
+    return myService.getCharacteristic(characteristicDOWUuid);
+  })
+  .then(characteristic => {
+    myCharacteristic = characteristic;
+    log('Char:' + myCharacteristic);
+    return myCharacteristic.readValue();
+  })
+  .then(readvalue => {
+    let decodedStr = "";
+    let tStr = "";
+    let tStr2 = "";
+    for (let ci = 0; ci < readvalue.byteLength; ci++) {
+          decodedStr += String.fromCharCode(readvalue.getUint8(ci, true));
+    }
+    log('rd:' + decodedStr);
+    //document.querySelector('#charwodsched').value = decodedStr;
+    return myService;
+  })
+  .then(service => {
+    log('Getting Characteristic2...' + characteristicPPCPUuid);
+    return myService.getCharacteristic(characteristicPPCPUuid);
+  })
+  .then(characteristic => {
+    myCharacteristic2 = characteristic;
+    log('Char:' + myCharacteristic2);
+    return myCharacteristic2.readValue();
+  })
+  .then(readvalue => {
+    let decodedStr = "";
+    for (let ci = 0; ci < readvalue.byteLength; ci++) {
+          decodedStr += String.fromCharCode(readvalue.getUint8(ci, true));
+    }
+    log('rd:' + decodedStr);
+    document.querySelector('#charwodsched2').value = decodedStr;
+    })
+ .catch(error => {
+    document.querySelector('#writeButton').disabled = true;
+    log('Argh! ' + error);
+  });
+}
+
+function onWriteButtonClick() {
+  if (!myDescriptor) {
+    return;
+  }
+  let encoder = new TextEncoder('utf-8');
+  //let value = document.querySelector('#description').value;
+  //log('Setting Characteristic User Description now');
+  let valux = Math.floor(Date.now() / 1000);
+  log('Set Current time to User Description...');
+  myDescriptor.writeValue(encoder.encode(valux))
+  .then(_ => {
+    log('> User Description changed to: ' + valux);
+  })
+  .catch(error => {
+    log('Argh! ' + error);
+  });
+}
+
+function onWriteButton2Click() {
+  if (!myDescriptor) {
+    return;
+  }
+  let encoder = new TextEncoder('utf-8');
+  let value = document.querySelector('#description').value;
+  log('Setting Characteristic User Description now');
+  //log('Set Characteristic User Description...');
+  myDescriptor.writeValue(encoder.encode(value))
+  .then(_ => {
+    log('> Characteristic User Description changed to: ' + value);
+  })
+  .catch(error => {
+    log('Argh! ' + error);
+  });
+}
+
+function onWriteButton3Click() {
+  if (!myCharacteristic) {
+    return;
+  }
+  let encoder = new TextEncoder('utf-8');
+  let value = document.querySelector('#charwodsched').value;
+  log('Setting Characteristic DOW now');
+  //log('Set Characteristic User Description...');
+  myCharacteristic.writeValue(encoder.encode(value))
+  .then(_ => {
+    log('> Characteristic DOW changed to: ' + value);
+  })
+  .catch(error => {
+    log('Argh! ' + error);
+  });
+}
+function onWriteButton4Click() {
+  if (!myCharacteristic2) {
+    return;
+  }
+  let encoder = new TextEncoder('utf-8');
+  let value = document.querySelector('#charwodsched2').value;
+  log('Setting Characteristic DOW now2');
+  //log('Set Characteristic User Description...');
+  myCharacteristic.writeValue(encoder.encode(value))
+  .then(_ => {
+    log('> Characteristic DOW changed to: ' + value);
+  })
+  .catch(error => {
+    log('Argh! ' + error);
+  });
+}
+function onWriteButton5Click() {
+  if (!myCharacteristic2) {
+    return;
+  }
+  let encoder = new TextEncoder('utf-8');
+  let value = "WF0," + document.querySelector('#charwodwifi1').value + "," + document.querySelector('#charwodwifi2').value;
+  log('Setting Characteristic DOW now3');
+  //log('Set Characteristic User Description...');
+  myCharacteristic.writeValue(encoder.encode(value))
+  .then(_ => {
+    log('> Characteristic DOW changed to: ' + value);
+  })
+  .catch(error => {
+    log('Argh! ' + error);
+  });
+}
+function onReadButton2Click() {
+  let decodedStr = "";
+  if (!myCharacteristic) {
+    log('onReadButton2Click no myCharacteristic');
+    return;
+  }
+  log('onReadButton2Click');
+  myCharacteristic.readValue()
+    .then(readvalue => {
+    log(readvalue + ":" + readvalue.byteLength);
+ 
+  
+    for (let ci = 0; ci < readvalue.byteLength; ci++) {
+          decodedStr += String.fromCharCode(readvalue.getUint8(ci, true));
+    }
+    log('rd2:' + decodedStr);
+    document.querySelector('#charwodsched').value = decodedStr;  
+ });
+}
+function onReadButton3Click() {
+  let decodedStr = "";
+  if (!myCharacteristic2) {
+    log('onReadButton3Click no myCharacteristic2');
+    return;
+  }
+  log('onReadButton3Click');
+  myCharacteristic2.readValue()
+    .then(readvalue => {
+    log(readvalue + ":" + readvalue.byteLength);
+ 
+  
+    for (let ci = 0; ci < readvalue.byteLength; ci++) {
+          decodedStr += String.fromCharCode(readvalue.getUint8(ci, true));
+    }
+    log('rd3:' + decodedStr);
+    document.querySelector('#charwodsched2').value = decodedStr;  
+ });
+}
+function onCtrlButton1Click() {
+  document.querySelector('#description').value = 'v+'; 
+  onWriteButton2Click();
+}
+function onCtrlButton2Click() {
+  document.querySelector('#description').value = 'v-'; 
+  onWriteButton2Click();
+}
+function onCtrlButton3Click() {
+  document.querySelector('#description').value = 's+'; 
+  onWriteButton2Click();
+}
+function onCtrlButton4Click() {
+  document.querySelector('#description').value = 's-'; 
+  onWriteButton2Click();
+}
+function onCtrlButton5Click() {
+  document.querySelector('#description').value = 'off/on'; 
+  onWriteButton2Click();
+}function setinput(wk) {
+  if (!myDescriptor) {
+    return;
+  }
+  let encoder = new TextEncoder('utf-8');
+  log('Setting Characteristic User Description now');
+  myDescriptor.writeValue(encoder.encode(wk))
+  .then(_ => {
+    log('> Characteristic User Description changed to: ' + wk);
+    onReadButton2Click();
+  })
+  .catch(error => {
+    log('Argh! ' + error);
+  });
+}
+function setinput2(st) {
+  if (!myDescriptor) {
+    return;
+  }
+  let encoder = new TextEncoder('utf-8');
+  log('Setting Characteristic User Description now2');
+  myDescriptor.writeValue(encoder.encode(st))
+  .then(_ => {
+    log('> Characteristic User Description changed to: ' + st);
+    onReadButton3Click();
+  })
+  .catch(error => {
+    log('Argh! ' + error);
+  });
+}
+</script>
+
+<script>
+  document.querySelector('#readButton').addEventListener('click', function() {
+    if (isWebBluetoothEnabled()) {
+      ChromeSamples.clearLog();
+      onReadButtonClick();
+    }
+  });
+  document.querySelector('#writeButton').addEventListener('click', function() {
+    onWriteButtonClick();
+  });
+  //document.querySelector('#writeButton2').addEventListener('click', function() {
+  //  onWriteButton2Click();
+  //});
+  document.querySelector('#writeButton3').addEventListener('click', function() {
+    onWriteButton3Click();
+  });
+  document.querySelector('#writeButton4').addEventListener('click', function() {
+    onWriteButton4Click();
+  });
+  document.querySelector('#writeButton5').addEventListener('click', function() {
+    onWriteButton5Click();
+  });
+  document.querySelector('#readButton2').addEventListener('click', function() {
+    onReadButton2Click();
+  });
+  document.querySelector('#readButton3').addEventListener('click', function() {
+    onReadButton3Click();
+  });
+  document.querySelector('#ctrlButton1').addEventListener('click', function() {
+    onCtrlButton1Click();
+  });
+  document.querySelector('#ctrlButton2').addEventListener('click', function() {
+    onCtrlButton2Click();
+  });
+  document.querySelector('#ctrlButton3').addEventListener('click', function() {
+    onCtrlButton3Click();
+  });
+  document.querySelector('#ctrlButton4').addEventListener('click', function() {
+    onCtrlButton4Click();
+  });
+  document.querySelector('#ctrlButton5').addEventListener('click', function() {
+    onCtrlButton5Click();
+  });
+</script>
+
+<script>
+  log = ChromeSamples.log;
+
+  function isWebBluetoothEnabled() {
+    if (navigator.bluetooth) {
+      return true;
+    } else {
+      ChromeSamples.setStatus('Web Bluetooth API is not available.\n' +
+          'Please make sure the "Experimental Web Platform features" flag is enabled.');
+      return false;
+    }
+  }
+</script>
+</body></html>
