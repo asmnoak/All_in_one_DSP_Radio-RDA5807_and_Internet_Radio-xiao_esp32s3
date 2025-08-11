@@ -38,7 +38,7 @@ I2SのライブラリaudioI2Sは、<a href="https://github.com/schreibfaul1/ESP3
 プルアップ抵抗（R3,R4）は配線の長さに注意すれば省略可である。<br>
 J8にタクトスイッチを接続する。例えば、IO43にはスリープ機能を定義してある。<br>
 </p>
-<-- p>
+<!-- p>
 <img src="./xiao_esp32s3_i_d.JPG" width="480" height="400"><br>
 </p -->
 <p>
