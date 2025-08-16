@@ -7,7 +7,7 @@ DSPラジオにはRDA5807FPを利用した（<a href="https://www.aitendo.com/pr
 操作には、Webブラウザを使用する。<br>開発はArduino IDE 2.1で行った。<br>
 使用したRDA5807用のライブラリは、<a href="https://github.com/pu2clr/RDA5807">こちら（pu2clr at GitHub）</a>にある。<br>
 なお、Arduino IDEのライブラリ管理からもインストール可能である。<br>
-I2SのライブラリaudioI2Sは、<a href="https://github.com/schreibfaul1/ESP32-audioI2S  ">こちら（GitHub）</a>を利用している。
+I2SのライブラリaudioI2Sは、<a href="https://github.com/schreibfaul1/ESP32-audioI2S  ">こちら（GitHub）</a>(ただし、バージョンは3.0.12。このフォルダの”src.zip”)を利用している。
 </p>
 <p><strong>機能</strong><br>
  ・FMラジオとインターネットラジオを切替え可能。出力切替えには　アナログスイッチADG884 を利用している。<br>
