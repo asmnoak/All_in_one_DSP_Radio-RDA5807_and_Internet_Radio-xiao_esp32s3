@@ -49,7 +49,7 @@
 #define OLED_RESET -1         // Reset pin # (or -1 if sharing Arduino reset pin)
 #define MAXSTNIDX    7        // station index 0-7          
 #define MAXSCEDIDX   8        // schedule table index 0-8
-#define VERSION_NR  " ver:0.57"    //
+#define VERSION_NR  " ver:0.58"    //
 // uuidgen : d392ca55-7a45-47db-adb9-26164b3e7a7b          
 static BLEUUID IDBserviceUUID("00001805-7a45-47db-adb9-26164b3e7a7b");
 static BLEUUID IDBcharUUID("00002a2b-7a45-47db-adb9-26164b3e7a7b");
@@ -1206,12 +1206,13 @@ void loop()
       p_onoff_req = false;
     }
     if (laststnIdx != stnIdx) {
+      stn_ok = true;  //  moved, ver 0.58
+      preferences.putInt("stix", stnIdx);  //  moved, ver 0.58
       Serial.print("stn changed:");
       Serial.println(stnIdx);
       radio.setFrequency(stnFreq[stnIdx]);
       lastfreq = stnFreq[stnIdx];
       laststnIdx = stnIdx;
-      stn_ok = true;
     }
     oled.clearDisplay();
     oled.setTextSize(2); // Draw 2X-scale text
@@ -1503,7 +1504,7 @@ void station_setting1() { //DSP Radio
     if (stnIdx > MAXSTNIDX) stnIdx = 0;  // turn around to support single button
     //Serial.print("stnIdx+:");
     //Serial.println(stnIdx);
-    preferences.putInt("stix", stnIdx);
+    //preferences.putInt("stix", stnIdx); ver 0.58
   }
 }
 // station change int routine
@@ -1511,7 +1512,7 @@ void station_setting(){
   ct2=millis();
   //delay(10);  // no effect here
   if ((ct2-pt2)>250) {
-    Serial.print("st:");
+    //Serial.print("st:"); ver 0.58
     if (inet_radio==1) {
       station = station + 1;  // inet
       if (station>=max_station) station=0;
@@ -1529,6 +1530,7 @@ void station_setting_2() {
     if (stnIdx < 0) stnIdx = MAXSTNIDX; // turn around to support single button
     //Serial.print("stnIdx-:");
     //Serial.println(stnIdx);
-    preferences.putInt("stix", stnIdx);
+    //preferences.putInt("stix", stnIdx);  ver 0.58
   }
 }
+
