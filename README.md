@@ -79,3 +79,8 @@ J8にタクトスイッチを接続する。例えば、IO43にはスリープ�
 ・一通りの動作は確認していますが、まだ、bugはあると思います。<br>
 ・動作を保証するものではありませんので、利用の際は、自己責任でお楽しみください。
 </p>
+
+<p><strong>追記</strong><br>
+基板化しました。データは
+<a href="https://www.pcbway.com/project/shareproject/All_in_one_DSP_Radio_RDA5807_and_Internet_Radio_xiao_esp32s3_5874fd0a.html">こちら（PCBWAY）</a>
+</p>
